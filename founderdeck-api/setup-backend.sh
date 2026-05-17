@@ -51,7 +51,7 @@ php artisan db:show > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     echo "✅ Database connection successful."
 else
-    echo "❌ ERROR: Database connection failed!"
+    echo "❌ DATABASE CONNECTION FAILED!"
     echo "Please check DB_PASSWORD in .env and ensure your PostgreSQL service is running."
     exit 1
 fi
@@ -73,7 +73,6 @@ echo "✅ Database seeding completed."
 
 # 8. Queue table
 echo "Setting up queue..."
-# Queue table might already be migrated depending on Laravel 11's default setup
 php artisan queue:table > /dev/null 2>&1 || true
 php artisan migrate > /dev/null 2>&1
 echo "✅ Queue table setup."
@@ -84,7 +83,7 @@ php artisan storage:link
 echo "✅ Storage linked."
 
 echo ""
-echo "Backend ready! Run these 4 commands in 4 separate terminals (inside the FounderDeck/ directory):"
+echo "Backend ready! Run these 4 commands in 4 separate terminals (inside the founderdeck-api/ directory):"
 echo "1. php artisan serve --port=8000"
 echo "2. php artisan queue:work --tries=3"
 echo "3. php artisan reverb:start --port=8080"
