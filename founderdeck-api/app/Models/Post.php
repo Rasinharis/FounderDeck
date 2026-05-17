@@ -18,11 +18,14 @@ class Post extends Model
         'user_id',
         'title',
         'tagline',
+        'one_liner_summary',
         'description',
         'industry',
         'tech_stack',
         'funding_stage',
         'cover_image_url',
+        'video_url',
+        'slides',
         'demo_url',
         'github_repo_url',
         'is_published',
@@ -33,6 +36,7 @@ class Post extends Model
     {
         return [
             'tech_stack' => 'array',
+            'slides' => 'array',
             'is_published' => 'boolean',
             'views_count' => 'integer',
         ];

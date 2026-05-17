@@ -5,11 +5,15 @@ import { getPost } from '../../api/posts';
 import { useAuthStore } from '../../store/useAuthStore';
 import { formatStage, getPostImage, initials, numberCompact } from '../../lib/format';
 import {
+  ArrowLeft,
+  ArrowRight,
   ArrowUpRight,
   Code2,
   Loader2,
   MessageSquare,
+  Play,
   Send,
+  Sparkles,
   ThumbsDown,
   ThumbsUp,
   UserPlus,
@@ -110,6 +114,20 @@ export default function PitchDetail() {
     }
   };
 
+  // Convert standard URLs to active embeds
+  const getEmbedUrl = (url) => {
+    if (!url) return null;
+    let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    let match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return `https://www.youtube.com/embed/${match[2]}`;
+    }
+    if (url.includes('loom.com/share/')) {
+      return url.replace('loom.com/share/', 'loom.com/embed/');
+    }
+    return url;
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#EAEAEA] pt-16">
@@ -191,8 +209,46 @@ export default function PitchDetail() {
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
         <div className="space-y-8">
+          
+          {/* AI One-Liner Summary Box */}
+          {pitch.one_liner_summary && (
+            <div className="rounded-2xl border border-[#FF5C00]/10 bg-[#FF5C00]/5 p-5 flex gap-4 items-start shadow-sm">
+              <Sparkles className="h-6 w-6 text-[#FF5C00] shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-widest text-[#FF5C00] font-display">AI Validation Summary</h4>
+                <p className="mt-1 text-base font-bold text-gray-800 leading-relaxed">{pitch.one_liner_summary}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Loom / YouTube Video pitch */}
+          {pitch.video_url && (
+            <article className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm space-y-4">
+              <h2 className="text-xl font-display font-black text-[#111111] flex items-center gap-1.5">
+                <Play className="h-4 w-4 text-[#FF5C00] fill-current" /> Elevator Pitch video
+              </h2>
+              <div className="aspect-video w-full overflow-hidden rounded-xl border border-black/5 bg-gray-50">
+                <iframe
+                  src={getEmbedUrl(pitch.video_url)}
+                  title="Elevator Pitch Video"
+                  className="h-full w-full border-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </article>
+          )}
+
+          {/* Slides Carousel */}
+          {pitch.slides && pitch.slides.length > 0 && (
+            <article className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm space-y-4">
+              <h2 className="text-xl font-display font-black text-[#111111]">Pitch Deck Slides</h2>
+              <SlideCarousel slides={pitch.slides} />
+            </article>
+          )}
+
           <article className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-display font-black text-[#111111]">Pitch</h2>
+            <h2 className="text-xl font-display font-black text-[#111111]">Pitch Description</h2>
             <p className="mt-4 whitespace-pre-wrap leading-8 text-gray-600 font-medium text-sm sm:text-base">{pitch.description}</p>
 
             {(pitch.tech_stack?.length > 0 || pitch.tags?.length > 0) && (
@@ -329,5 +385,57 @@ export default function PitchDetail() {
         </aside>
       </section>
     </main>
+  );
+}
+
+// ── Slide Deck Sub-Carousel Component ──────────────────
+function SlideCarousel({ slides }) {
+  const [slideIndex, setSlideIndex] = useState(0);
+
+  if (!slides || slides.length === 0) return null;
+
+  return (
+    <div className="relative rounded-xl border border-black/5 overflow-hidden group">
+      <div className="h-64 bg-gray-950 flex items-center justify-center">
+        <img
+          src={slides[slideIndex]}
+          alt={`Slide ${slideIndex + 1}`}
+          className="h-full w-full object-contain"
+        />
+      </div>
+
+      {slides.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all shadow-md border border-black/5"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setSlideIndex((prev) => (prev + 1) % slides.length)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all shadow-md border border-black/5"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+
+          <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSlideIndex(idx)}
+                className={`h-2 w-2 rounded-full transition-all ${
+                  idx === slideIndex ? 'bg-[#FF5C00] w-3' : 'bg-white/60 hover:bg-white'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
