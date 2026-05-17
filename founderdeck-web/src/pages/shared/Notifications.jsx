@@ -61,6 +61,20 @@ export default function Notifications() {
     }
   };
 
+  const markOneRead = async (notification) => {
+    if (notification.is_read) return;
+    try {
+      await api.patch(`/notifications/${notification.id}/read`);
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notification.id ? { ...item, is_read: true, read_at: new Date().toISOString() } : item
+        )
+      );
+    } catch {
+      // non-critical, silent fail
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#EAEAEA] px-4 pt-28 pb-12 text-[#111111]">
       <div className="mx-auto max-w-4xl">
@@ -88,7 +102,11 @@ export default function Notifications() {
           ) : notifications.map((notification) => {
             const Icon = iconByType[notification.type] ?? Bell;
             return (
-              <article key={notification.id} className={`flex gap-4 border-b border-black/5 p-5 last:border-b-0 ${notification.is_read ? 'bg-white' : 'bg-[#FF5C00]/5'}`}>
+              <article
+                key={notification.id}
+                onClick={() => markOneRead(notification)}
+                className={`flex gap-4 border-b border-black/5 p-5 last:border-b-0 transition-colors ${notification.is_read ? 'bg-white' : 'bg-[#FF5C00]/5 cursor-pointer hover:bg-[#FF5C00]/10'}`}
+              >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FF5C00]/10 text-[#FF5C00]">
                   <Icon className="h-5 w-5" />
                 </div>

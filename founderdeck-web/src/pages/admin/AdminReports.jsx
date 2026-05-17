@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
-import { CheckCheck, Loader2 } from 'lucide-react';
+import { CheckCheck, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AdminReports() {
@@ -32,6 +32,16 @@ export default function AdminReports() {
     }
   };
 
+  const deleteReportedComment = async (report) => {
+    try {
+      await api.delete(`/admin/comments/${report.reportable_id}`);
+      setReports((current) => current.filter((item) => item.id !== report.id));
+      toast.success('Comment deleted.');
+    } catch {
+      toast.error('Could not delete comment.');
+    }
+  };
+
   return (
     <div className="space-y-6 text-[#111111]">
       <div>
@@ -52,16 +62,33 @@ export default function AdminReports() {
               <p className="mt-1 text-xs font-bold uppercase tracking-wider text-gray-400">
                 Reporter: {report.reporter?.name ?? 'Member'}
               </p>
+              {report.reportable_type?.includes('Comment') && (
+                <span className="mt-1 inline-block rounded bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-600">
+                  Comment report
+                </span>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => markReviewed(report)}
-              disabled={report.is_reviewed}
-              className="inline-flex w-fit items-center gap-2 rounded-full bg-[#FF5C00] hover:bg-[#E65300] shadow-md shadow-[#FF5C00]/15 px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <CheckCheck className="h-4 w-4" />
-              <span>{report.is_reviewed ? 'Reviewed' : 'Mark reviewed'}</span>
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {report.reportable_type?.includes('Comment') && (
+                <button
+                  type="button"
+                  onClick={() => deleteReportedComment(report)}
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/15 px-5 py-2 text-xs font-bold text-white transition-all"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Comment</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => markReviewed(report)}
+                disabled={report.is_reviewed}
+                className="inline-flex w-fit items-center gap-2 rounded-full bg-[#FF5C00] hover:bg-[#E65300] shadow-md shadow-[#FF5C00]/15 px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCheck className="h-4 w-4" />
+                <span>{report.is_reviewed ? 'Reviewed' : 'Mark reviewed'}</span>
+              </button>
+            </div>
           </div>
         ))}
       </div>

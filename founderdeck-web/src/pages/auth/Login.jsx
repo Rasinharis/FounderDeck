@@ -7,6 +7,12 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { oauthUrl } from '../../config/api';
 import { Loader2, AlertCircle } from 'lucide-react';
 
+function dashboardFor(role) {
+  if (role === 'super_admin') return '/admin/dashboard';
+  if (role === 'investor') return '/dashboard/investor';
+  return '/dashboard/entrepreneur';
+}
+
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -26,7 +32,8 @@ export default function Login() {
     const result = await login(data);
     
     if (result.success) {
-      navigate('/dashboard/entrepreneur'); // ProtectedRoute/RoleRoute will auto-redirect them correctly based on role
+      const { user } = useAuthStore.getState();
+      navigate(dashboardFor(user?.role));
     } else {
       setError(result.error);
     }

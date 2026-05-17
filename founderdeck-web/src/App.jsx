@@ -11,6 +11,7 @@ const Navbar = lazy(() => import('./components/layout/Navbar'));
 // Route Wrappers
 const ProtectedRoute = lazy(() => import('./components/layout/ProtectedRoute'));
 const RoleRoute = lazy(() => import('./components/layout/RoleRoute'));
+const GuestRoute = lazy(() => import('./components/layout/GuestRoute'));
 
 // Public Pages
 const Landing = lazy(() => import('./pages/public/Landing'));
@@ -71,8 +72,8 @@ export default function App() {
           <Route path="/profile/:id" element={<PublicProfile />} />
 
           {/* Auth Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+          <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
           <Route path="/auth/callback" element={<OAuthCallback />} />
           <Route path="/auth/google/callback" element={<OAuthCallback />} />
           

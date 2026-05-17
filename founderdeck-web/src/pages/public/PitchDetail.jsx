@@ -11,11 +11,13 @@ import {
   Code2,
   Loader2,
   MessageSquare,
+  Pencil,
   Play,
   Send,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
+  Trash2,
   UserPlus,
   Heart,
   Handshake,
@@ -35,6 +37,8 @@ export default function PitchDetail() {
   const [isCommenting, setIsCommenting] = useState(false);
   const [isSendingCollab, setIsSendingCollab] = useState(false);
   const [error, setError] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editBody, setEditBody] = useState('');
 
   const isOwner = user?.id && pitch?.user?.id === user.id;
   const canRequestCollab = isAuthenticated && user?.role === 'investor' && !isOwner;
@@ -132,6 +136,30 @@ export default function PitchDetail() {
       toast.error(commentError.response?.data?.message || 'Could not post comment.');
     } finally {
       setIsCommenting(false);
+    }
+  };
+
+  const handleCommentDelete = async (commentId) => {
+    try {
+      await api.delete(`/comments/${commentId}`);
+      setComments((current) => current.filter((c) => c.id !== commentId));
+      setPitch((current) => ({ ...current, comments_count: Math.max(0, (current.comments_count ?? 1) - 1) }));
+      toast.success('Comment deleted');
+    } catch {
+      toast.error('Could not delete comment.');
+    }
+  };
+
+  const handleCommentEditSave = async (commentId) => {
+    if (!editBody.trim()) return;
+    try {
+      const { data } = await api.put(`/comments/${commentId}`, { body: editBody.trim() });
+      setComments((current) => current.map((c) => (c.id === commentId ? data.data : c)));
+      setEditingCommentId(null);
+      setEditBody('');
+      toast.success('Comment updated');
+    } catch {
+      toast.error('Could not update comment.');
     }
   };
 
@@ -357,20 +385,74 @@ export default function PitchDetail() {
             <div className="space-y-4">
               {comments.length === 0 ? (
                 <p className="rounded-xl bg-[#F4F4F4] p-4 text-sm font-semibold text-gray-400">No comments yet. Be the first to add useful feedback.</p>
-              ) : comments.map((item) => (
-                <article key={item.id} className="rounded-xl border border-black/5 bg-[#F4F4F4] p-4">
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FF5C00]/10 text-xs font-bold text-[#FF5C00]">
-                      {initials(item.user?.name)}
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-gray-800">{item.user?.name ?? 'Member'}</p>
-                      <p className="text-xs text-gray-400 font-semibold">{new Date(item.created_at).toLocaleDateString()}</p>
+              ) : comments.map((item) => {
+                const isOwnerComment = user?.id && item.user?.id === user.id;
+                const isEditing = editingCommentId === item.id;
+                return (
+                  <article key={item.id} className="rounded-xl border border-black/5 bg-[#F4F4F4] p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FF5C00]/10 text-xs font-bold text-[#FF5C00]">
+                          {initials(item.user?.name)}
+                        </span>
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">{item.user?.name ?? 'Member'}</p>
+                          <p className="text-xs text-gray-400 font-semibold">{new Date(item.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      {isOwnerComment && !isEditing && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingCommentId(item.id); setEditBody(item.body); }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-[#FF5C00] hover:bg-white transition-all border-none bg-transparent cursor-pointer"
+                            title="Edit comment"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCommentDelete(item.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-white transition-all border-none bg-transparent cursor-pointer"
+                            title="Delete comment"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm leading-6 text-gray-600 font-semibold">{item.body}</p>
-                </article>
-              ))}
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editBody}
+                          onChange={(e) => setEditBody(e.target.value)}
+                          rows={3}
+                          className="w-full resize-y rounded-xl border border-[#FF5C00] bg-white p-3 text-sm leading-6 text-gray-800 font-semibold outline-none transition"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingCommentId(null); setEditBody(''); }}
+                            className="px-3 py-1.5 rounded-full border border-black/10 text-xs font-bold text-gray-600 bg-white hover:bg-gray-50 transition-all cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCommentEditSave(item.id)}
+                            disabled={!editBody.trim()}
+                            className="px-3 py-1.5 rounded-full bg-[#FF5C00] hover:bg-[#E65300] text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer border-none"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-gray-600 font-semibold">{item.body}</p>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </section>
         </div>
