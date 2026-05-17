@@ -33,8 +33,15 @@ class PostResource extends JsonResource
             'need_advisor_count' => $this->need_advisor_count,
             'comments_count' => $this->comments()->count(),
             'collab_requests_count' => $this->collaborationRequests()->count(),
-            'user_vote' => $request->user() ? $this->votes()->where('user_id', $request->user()->id)->value('vote_type') : null,
-            'is_bookmarked' => $request->user() ? $this->bookmarks()->where('user_id', $request->user()->id)->exists() : false,
+            'user_vote' => $request->user('sanctum') ? $this->votes()->where('user_id', $request->user('sanctum')->id)->value('vote_type') : null,
+            'is_bookmarked' => $request->user('sanctum') ? $this->bookmarks()->where('user_id', $request->user('sanctum')->id)->exists() : false,
+            'user_collab_status' => $request->user('sanctum')
+                ? $this->collaborationRequests()
+                    ->where('sender_id', $request->user('sanctum')->id)
+                    ->whereIn('status', ['pending', 'accepted', 'rejected'])
+                    ->orderByDesc('created_at')
+                    ->value('status')
+                : null,
             'tags' => TagResource::collection($this->whenLoaded('tags')),
             'user' => new UserResource($this->whenLoaded('user')),
             'created_at' => $this->created_at,

@@ -13,6 +13,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Register CORS middleware globally so the config/cors.php rules are
+        // applied to every request (including preflight OPTIONS requests).
+        $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'profile.completed' => \App\Http\Middleware\EnsureProfileCompleted::class,

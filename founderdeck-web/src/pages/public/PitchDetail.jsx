@@ -33,6 +33,7 @@ export default function PitchDetail() {
   const [comments, setComments] = useState([]);
   const [comment, setComment] = useState('');
   const [collabMessage, setCollabMessage] = useState('');
+  const [collabStatus, setCollabStatus] = useState(null); // null | 'pending' | 'accepted' | 'rejected'
   const [isLoading, setIsLoading] = useState(true);
   const [isCommenting, setIsCommenting] = useState(false);
   const [isSendingCollab, setIsSendingCollab] = useState(false);
@@ -54,6 +55,7 @@ export default function PitchDetail() {
       ]);
       setPitch(postData.data);
       setComments(commentData.data ?? []);
+      setCollabStatus(postData.data.user_collab_status ?? null);
       setCollabMessage(`Hi ${postData.data.user?.name ?? 'there'}, I like ${postData.data.title} and would like to explore a collaboration or investment conversation.`);
     } catch {
       setError('This pitch could not be loaded. It may have been removed or the API is unavailable.');
@@ -153,7 +155,7 @@ export default function PitchDetail() {
   const handleCommentEditSave = async (commentId) => {
     if (!editBody.trim()) return;
     try {
-      const { data } = await api.put(`/comments/${commentId}`, { body: editBody.trim() });
+      const { data } = await api.patch(`/comments/${commentId}`, { body: editBody.trim() });
       setComments((current) => current.map((c) => (c.id === commentId ? data.data : c)));
       setEditingCommentId(null);
       setEditBody('');
@@ -170,7 +172,8 @@ export default function PitchDetail() {
     setIsSendingCollab(true);
     try {
       await api.post(`/posts/${id}/collab`, { message: collabMessage.trim() });
-      toast.success('Collaboration request sent');
+      setCollabStatus('pending'); // optimistic update — no reload needed
+      toast.success('Collaboration request sent!');
     } catch (collabError) {
       toast.error(collabError.response?.data?.message || 'Could not send collaboration request.');
     } finally {
@@ -194,7 +197,7 @@ export default function PitchDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#EAEAEA] pt-16">
+      <div className="flex min-h-screen items-center justify-center bg-[#EAEAEA]">
         <Loader2 className="h-10 w-10 animate-spin text-[#FF5C00]" />
       </div>
     );
@@ -202,7 +205,7 @@ export default function PitchDetail() {
 
   if (error || !pitch) {
     return (
-      <main className="min-h-screen bg-[#EAEAEA] px-4 pt-28 text-[#111111]">
+      <main className="min-h-screen bg-[#EAEAEA] px-4 pt-8 text-[#111111]">
         <div className="mx-auto max-w-3xl rounded-xl border border-red-500/20 bg-red-50 p-6 text-red-600 font-bold">{error}</div>
       </main>
     );
@@ -212,7 +215,7 @@ export default function PitchDetail() {
   const totalScore = pitch.weighted_score ?? ((pitch.upvotes_count ?? 0) - (pitch.downvotes_count ?? 0));
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] pt-16 text-[#111111] pb-12">
+    <main className="min-h-screen bg-[#EAEAEA] pb-12 text-[#111111]">
       <section className="border-b border-black/5 bg-[#F4F4F4]/50 backdrop-blur-md">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
           <div>
@@ -235,7 +238,7 @@ export default function PitchDetail() {
               </button>
             </div>
 
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-gray-500 font-semibold">{pitch.tagline}</p>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-gray-500 font-semibold break-words overflow-hidden">{pitch.tagline}</p>
 
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <Link to={`/profile/${pitch.user?.id}`} className="inline-flex items-center gap-3 rounded-2xl border border-black/5 bg-white px-4 py-2.5 transition hover:border-[#FF5C00]/40 shadow-sm">
@@ -326,9 +329,9 @@ export default function PitchDetail() {
             </article>
           )}
 
-          <article className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+          <article className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm overflow-hidden">
             <h2 className="text-xl font-display font-black text-[#111111]">Pitch Description</h2>
-            <p className="mt-4 whitespace-pre-wrap leading-8 text-gray-600 font-medium text-sm sm:text-base">{pitch.description}</p>
+            <p className="mt-4 whitespace-pre-wrap break-words overflow-wrap-anywhere leading-8 text-gray-600 font-medium text-sm sm:text-base max-w-full">{pitch.description}</p>
 
             {(pitch.tech_stack?.length > 0 || pitch.tags?.length > 0) && (
               <div className="mt-6 flex flex-wrap gap-2">
@@ -524,13 +527,55 @@ export default function PitchDetail() {
 
           <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-display font-black text-[#111111]">Connect</h2>
-            <p className="mt-2 text-sm leading-6 text-gray-500 font-semibold">Investors can request collaboration. Accepted requests can move into private encrypted messaging.</p>
-            {canRequestCollab ? (
+            <p className="mt-2 text-sm leading-6 text-gray-500 font-semibold">Investors can request collaboration. Accepted requests unlock private encrypted messaging.</p>
+
+            {/* Collab status states for investors */}
+            {canRequestCollab && collabStatus === 'pending' && (
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <Handshake className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-black text-amber-700">Request Pending</p>
+                  <p className="mt-0.5 text-xs font-semibold text-amber-600">Your collaboration request is awaiting the founder's response.</p>
+                </div>
+              </div>
+            )}
+
+            {canRequestCollab && collabStatus === 'accepted' && (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <Award className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-black text-emerald-700">Collaboration Accepted! 🎉</p>
+                    <p className="mt-0.5 text-xs font-semibold text-emerald-600">The founder accepted your request. You can now message them directly.</p>
+                  </div>
+                </div>
+                <Link
+                  to={`/messages?user=${pitch.user?.id}`}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-emerald-600/15"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Open Message Thread
+                </Link>
+              </div>
+            )}
+
+            {canRequestCollab && collabStatus === 'rejected' && (
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
+                <Coins className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-black text-red-600">Request Declined</p>
+                  <p className="mt-0.5 text-xs font-semibold text-red-500">The founder declined your collaboration request at this time.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Show form only when no active/past request */}
+            {canRequestCollab && !collabStatus && (
               <form onSubmit={handleCollab} className="mt-4 space-y-3">
                 <textarea
                   value={collabMessage}
                   onChange={(event) => setCollabMessage(event.target.value)}
-                  rows={5}
+                  rows={4}
                   className="w-full resize-y rounded-xl border border-black/5 bg-[#F4F4F4] p-3 text-sm leading-6 text-gray-800 font-semibold outline-none transition focus:border-[#FF5C00]"
                 />
                 <button
@@ -542,12 +587,16 @@ export default function PitchDetail() {
                   Request Collaboration
                 </button>
               </form>
-            ) : (
+            )}
+
+            {/* Non-investor / non-authenticated fallback */}
+            {!canRequestCollab && (
               <div className="mt-4 rounded-xl bg-[#F4F4F4] p-4 text-sm font-semibold text-gray-500">
                 {isAuthenticated ? 'Collaboration requests are available from investor accounts.' : 'Log in as an investor to request collaboration.'}
               </div>
             )}
-            {isAuthenticated && !isOwner && (
+
+            {isAuthenticated && !isOwner && collabStatus !== 'accepted' && (
               <Link
                 to={`/messages?user=${pitch.user?.id}`}
                 className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-black/10 bg-[#F4F4F4]/50 px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:border-[#FF5C00]/40"

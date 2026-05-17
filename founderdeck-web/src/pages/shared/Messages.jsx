@@ -93,8 +93,8 @@ export default function Messages() {
   };
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] pt-20 pb-12 text-[#111111]">
-      <div className="mx-auto grid max-w-7xl gap-0 px-4 sm:px-6 lg:grid-cols-[330px_1fr] lg:px-8 border border-black/5 bg-white rounded-2xl overflow-hidden shadow-md">
+    <div className="text-[#111111]">
+      <div className="grid gap-0 lg:grid-cols-[330px_1fr] border border-black/5 bg-white rounded-2xl overflow-hidden shadow-md min-h-[calc(100vh-160px)]">
         <aside className="border-b lg:border-b-0 lg:border-r border-black/5 bg-[#F4F4F4] flex flex-col">
           <div className="border-b border-black/5 p-5">
             <h1 className="text-xl font-display font-black text-[#111111] uppercase tracking-tight">Messages</h1>
@@ -184,7 +184,7 @@ export default function Messages() {
           )}
         </section>
       </div>
-    </main>
+    </div>
   );
 }
 

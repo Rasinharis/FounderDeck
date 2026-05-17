@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/useAuthStore';
 
 // Layouts
@@ -53,6 +53,17 @@ function PageLoader() {
   );
 }
 
+function MessagesRedirect() {
+  const { user } = useAuthStore();
+  const location = useLocation();
+  const qs = location.search; // preserve ?user=... query params
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'entrepreneur') return <Navigate to={`/dashboard/entrepreneur/messages${qs}`} replace />;
+  if (user.role === 'investor') return <Navigate to={`/dashboard/investor/messages${qs}`} replace />;
+  // super_admin or unknown: fall back to a sensible default
+  return <Navigate to="/" replace />;
+}
+
 export default function App() {
   const { hydrateFromStorage } = useAuthStore();
 
@@ -79,7 +90,8 @@ export default function App() {
           
           {/* Protected Common Routes */}
           <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          {/* /messages → redirect to role-appropriate dashboard messages */}
+          <Route path="/messages" element={<ProtectedRoute><MessagesRedirect /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
           {/* Entrepreneur Dashboard */}
@@ -89,12 +101,14 @@ export default function App() {
             <Route path="pitches/new" element={<PitchForm />} />
             <Route path="pitches/:id/edit" element={<PitchForm />} />
             <Route path="collabs" element={<CollabInbox />} />
+            <Route path="messages" element={<Messages />} />
           </Route>
 
           {/* Investor Dashboard */}
           <Route path="/dashboard/investor" element={<ProtectedRoute><RoleRoute allowedRole="investor"><InvestorLayout /></RoleRoute></ProtectedRoute>}>
             <Route index element={<InvestorOverview />} />
             <Route path="collabs" element={<SentCollabs />} />
+            <Route path="messages" element={<Messages />} />
           </Route>
 
           {/* Admin Dashboard */}

@@ -82,7 +82,7 @@ export default function PublicProfile() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#EAEAEA] pt-16">
+      <div className="flex min-h-screen items-center justify-center bg-[#EAEAEA]">
         <Loader2 className="h-10 w-10 animate-spin text-[#FF5C00]" />
       </div>
     );
@@ -90,7 +90,7 @@ export default function PublicProfile() {
 
   if (error || !profile) {
     return (
-      <main className="min-h-screen bg-[#EAEAEA] px-4 pt-28">
+      <main className="min-h-screen bg-[#EAEAEA] px-4 pt-8">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/20 bg-white p-6 text-red-600 font-bold shadow-sm">{error}</div>
       </main>
     );
@@ -99,7 +99,7 @@ export default function PublicProfile() {
   const isOwner = currentUser?.id === profile.id;
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] pt-16 text-[#111111] pb-12">
+    <main className="min-h-screen bg-[#EAEAEA] pb-12 text-[#111111]">
       {/* Profile Info Header */}
       <section className="border-b border-black/5 bg-white shadow-sm">
         <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-start lg:px-8">

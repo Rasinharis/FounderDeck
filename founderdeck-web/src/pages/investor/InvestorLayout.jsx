@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { initials } from '../../lib/format';
-import { Handshake, LayoutDashboard, LogOut, MessageSquare } from 'lucide-react';
+import { Handshake, LayoutDashboard, LogOut, Mail, MessageSquare } from 'lucide-react';
 
 export default function InvestorLayout() {
   const { user, logout } = useAuthStore();
@@ -9,7 +9,7 @@ export default function InvestorLayout() {
   const navItems = [
     { name: 'Overview', path: '/dashboard/investor', icon: LayoutDashboard, end: true },
     { name: 'Sent Collabs', path: '/dashboard/investor/collabs', icon: Handshake, end: false },
-    { name: 'Messages', path: '/messages', icon: MessageSquare, end: false },
+    { name: 'Messages', path: '/dashboard/investor/messages', icon: Mail, end: false },
   ];
 
   return (

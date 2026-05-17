@@ -36,7 +36,7 @@ export default function Onboarding() {
         github_url: form.github_url || null,
         avatar_url: form.avatar_url || null,
       };
-      const { data } = await api.put('/profile', payload);
+      const { data } = await api.patch('/profile', payload);
       setUser(data.data);
       toast.success('Profile saved');
       navigate(dashboardPath, { replace: true });
@@ -48,7 +48,7 @@ export default function Onboarding() {
   };
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] px-4 pt-28 pb-12 text-[#111111]">
+    <main className="min-h-screen bg-[#EAEAEA] px-4 pt-8 pb-12 text-[#111111]">
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3 border-b border-black/5 pb-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FF5C00]/10 shrink-0">

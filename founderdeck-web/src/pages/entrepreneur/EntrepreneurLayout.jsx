@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
-import { Presentation, MessageSquare, LayoutDashboard, LogOut } from 'lucide-react';
+import { Presentation, MessageSquare, Mail, LayoutDashboard, LogOut } from 'lucide-react';
 import { initials } from '../../lib/format';
 
 export default function EntrepreneurLayout() {
@@ -16,6 +16,7 @@ export default function EntrepreneurLayout() {
     { name: 'Overview', path: '/dashboard/entrepreneur', icon: LayoutDashboard, end: true },
     { name: 'My Pitches', path: '/dashboard/entrepreneur/pitches', icon: Presentation, end: false },
     { name: 'Collab Inbox', path: '/dashboard/entrepreneur/collabs', icon: MessageSquare, end: false },
+    { name: 'Messages', path: '/dashboard/entrepreneur/messages', icon: Mail, end: false },
   ];
 
   return (

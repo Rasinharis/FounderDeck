@@ -56,7 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Posts (Entrepreneur only) ───────────────────────────
     Route::post('/posts', [PostController::class, 'store'])
         ->middleware('role:entrepreneur');
-    Route::put('/posts/{post}', [PostController::class, 'update'])
+    Route::patch('/posts/{post}', [PostController::class, 'update'])
         ->middleware('role:entrepreneur');
     Route::delete('/posts/{post}', [PostController::class, 'destroy'])
         ->middleware('role:entrepreneur');
@@ -71,7 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Comments ────────────────────────────────────────────
     Route::post('/posts/{post}/comments', [CommentController::class, 'store']);
-    Route::put('/comments/{comment}', [CommentController::class, 'update']);
+    Route::patch('/comments/{comment}', [CommentController::class, 'update']);
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy']);
 
     // ── Collaboration Requests ──────────────────────────────
@@ -102,7 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
 
     // ── Profile ─────────────────────────────────────────────
-    Route::put('/profile', [ProfileController::class, 'update']);
+    Route::patch('/profile', [ProfileController::class, 'update']);
     Route::post('/profile/sync-linkedin', [ProfileController::class, 'syncLinkedin']);
 
     // ── Bookmarks ───────────────────────────────────────────

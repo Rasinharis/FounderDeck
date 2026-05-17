@@ -76,7 +76,7 @@ export default function Notifications() {
   };
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] px-4 pt-28 pb-12 text-[#111111]">
+    <main className="min-h-screen bg-[#EAEAEA] px-4 pt-8 pb-12 text-[#111111]">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
