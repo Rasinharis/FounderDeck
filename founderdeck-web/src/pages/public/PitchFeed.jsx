@@ -64,6 +64,7 @@ export default function PitchFeed() {
   const [previewComments, setPreviewComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [isCommenting, setIsCommenting] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState('details');
 
   const params = useMemo(() => ({
     search: search || undefined,
@@ -140,11 +141,12 @@ export default function PitchFeed() {
     }
   };
 
-  // Open Quick View Modal
-  const openQuickView = async (event, pitch) => {
+  // Open Quick View Modal with a pre-selected focused tab
+  const openQuickView = async (event, pitch, initialTab = 'details') => {
     event.preventDefault();
     event.stopPropagation();
     setPreviewPitch(pitch);
+    setActiveModalTab(initialTab);
     setPreviewComments([]);
     setNewComment('');
 
@@ -159,17 +161,18 @@ export default function PitchFeed() {
   // Submit comment inside Quick View Modal
   const submitQuickComment = async (event) => {
     event.preventDefault();
-    if (!isAuthenticated) {
-      toast.error('Please log in to comment.');
-      return;
-    }
-    if (!newComment.trim() || !previewPitch) return;
+    if (!newComment.trim() || isCommenting || !previewPitch) return;
 
     setIsCommenting(true);
     try {
-      const { data } = await api.post(`/posts/${previewPitch.id}/comments`, { body: newComment.trim() });
-      setPreviewComments((current) => [data.data, ...current]);
-      
+      const { data } = await api.post(`/posts/${previewPitch.id}/comments`, {
+        body: newComment.trim(),
+      });
+      setPreviewComments((prev) => [data.data, ...prev]);
+      setNewComment('');
+      toast.success('Comment posted successfully');
+
+      // Update feed item comments count
       setPitches((current) =>
         current.map((item) =>
           item.id === previewPitch.id
@@ -177,26 +180,18 @@ export default function PitchFeed() {
             : item
         )
       );
-
-      setPreviewPitch((current) => ({
-        ...current,
-        comments_count: (current.comments_count ?? 0) + 1,
-      }));
-
-      setNewComment('');
-      toast.success('Comment posted successfully');
-    } catch (commentError) {
-      toast.error('Could not post comment.');
+    } catch (commentErr) {
+      toast.error(commentErr.response?.data?.message || 'Failed to post comment.');
     } finally {
       setIsCommenting(false);
     }
   };
 
-  // Convert standard URLs to active embeds
+  // Clean iframe video embed links
   const getEmbedUrl = (url) => {
-    if (!url) return null;
-    let regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    let match = url.match(regExp);
+    if (!url) return '';
+    const youtubeRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(youtubeRegExp);
     if (match && match[2].length === 11) {
       return `https://www.youtube.com/embed/${match[2]}`;
     }
@@ -207,134 +202,125 @@ export default function PitchFeed() {
   };
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] pt-20 pb-12 text-[#111111]">
+    <div className="space-y-6 text-[#111111] min-h-screen bg-[#EAEAEA] pb-12">
       
-      {/* ⚡ NOW LIVE ACTIVITY MARQUEE BANNER */}
-      <section className="bg-gray-950 text-white py-2 px-4 overflow-hidden border-b border-white/5 flex items-center gap-3">
-        <span className="flex h-2.5 w-2.5 shrink-0 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-[#FF5C00] shrink-0 font-display flex items-center gap-1">
-          <Zap className="h-3 w-3 fill-current" /> Live Activity Feed
-        </span>
-        <div className="h-4 overflow-hidden flex-1 relative flex items-center justify-start text-xs font-semibold text-gray-300">
-          <div className="transition-all duration-500 transform translate-y-0 opacity-100 flex items-center gap-2">
-            <span>{mockLiveActivities[activityIndex].text}</span>
-            <span className="text-[10px] text-gray-500 font-bold uppercase">{mockLiveActivities[activityIndex].time}</span>
+      {/* ── RUNNING NOW-LIVE ACTIVITY MARQUEE TICKER ── */}
+      <div className="relative w-full overflow-hidden bg-black text-[#FF5C00] py-3.5 px-4 font-black uppercase text-xs tracking-widest flex items-center shadow-lg border-b border-[#FF5C00]/20">
+        <span className="flex h-2 w-2 rounded-full bg-green-500 animate-ping mr-3 shrink-0" />
+        <span className="bg-[#FF5C00] text-black text-[9px] px-2 py-0.5 rounded font-black mr-4 uppercase shrink-0">Live Match events</span>
+        <div className="w-full relative h-4 overflow-hidden">
+          <div className="absolute w-full animate-marquee-text text-white/90">
+            {mockLiveActivities[activityIndex].text}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Dynamic Jumbotron Header */}
-      <section className="border-b border-black/5 bg-[#F4F4F4]/50 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#FF5C00] font-display flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" /> Interactive Matchmaking Room
-              </p>
-              <h1 className="mt-2 text-3xl font-display font-black tracking-tight sm:text-4xl text-[#111111]">Discover founder ideas</h1>
-              <p className="mt-2 max-w-2xl text-sm font-semibold text-gray-500">
-                Browse ideas, vote instantly directly from the feed, preview pitch decks with Quick View, and submit comments.
-              </p>
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
+        
+        {/* Header section */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pt-4">
+          <div>
+            <h1 className="text-4xl font-display font-black text-[#111111] uppercase tracking-tight">Pitches Explorer</h1>
+            <p className="mt-1 text-sm font-semibold text-gray-500">Discover and validate the next wave of high-growth technology startups.</p>
+          </div>
+        </div>
+
+        {/* Dynamic Filters Bar */}
+        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm space-y-4">
+          
+          {/* Industry Pills */}
+          <div>
+            <span className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2.5">Filter by Industry</span>
+            <div className="flex flex-wrap gap-2">
+              {industries.map((ind) => (
+                <button
+                  key={ind}
+                  type="button"
+                  onClick={() => setIndustry(ind)}
+                  className={`rounded-full px-4 py-2 text-xs font-bold transition-all border ${
+                    (ind === 'All' && industry === 'All') || industry === ind
+                      ? 'bg-[#FF5C00] border-[#FF5C00] text-white shadow-md'
+                      : 'bg-white border-black/5 text-gray-600 hover:bg-black/5'
+                  }`}
+                >
+                  {ind}
+                </button>
+              ))}
             </div>
-            {!isAuthenticated && (
-              <Link
-                to="/register"
-                className="inline-flex w-fit items-center justify-center rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15 hover:scale-[1.02]"
-              >
-                Join FounderDeck
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-            )}
           </div>
 
-          {/* Interactive Filters Grid */}
-          <div className="space-y-4 rounded-2xl border border-black/5 bg-white p-4 shadow-sm">
-            {/* Industry pills */}
-            <div>
-              <span className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Filter by Industry</span>
-              <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 max-h-[85px]">
-                {industries.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setIndustry(item)}
-                    className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
-                      (item === 'All' && industry === 'All') || (item === industry)
-                        ? 'bg-[#FF5C00] text-white shadow-sm shadow-[#FF5C00]/15'
-                        : 'bg-[#F4F4F4] text-gray-600 border border-black/5 hover:bg-black/5'
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-12 items-center">
+            
+            {/* Search Input */}
+            <div className="relative md:col-span-6">
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by name, key tagline, or stack..."
+                className="w-full rounded-full border border-black/5 bg-[#F4F4F4] py-2.5 pl-10 pr-4 text-xs font-semibold placeholder-gray-400 text-[#111111] outline-none focus:ring-1 focus:ring-[#FF5C00] transition-shadow"
+              />
             </div>
 
-            <div className="grid gap-3 pt-2 md:grid-cols-[1fr_200px_200px]">
-              {/* Interactive Search Bar */}
-              <label className="relative block">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by name, key tagline, or stack..."
-                  className="h-11 w-full rounded-xl border border-black/5 bg-[#F4F4F4] pl-10 pr-3 text-sm text-gray-800 font-semibold outline-none transition focus:ring-1 focus:ring-[#FF5C00] focus:border-[#FF5C00]"
-                />
-              </label>
-
-              {/* Stage select */}
+            {/* Stage Selector */}
+            <div className="relative md:col-span-3">
               <select
                 value={stage}
                 onChange={(event) => setStage(event.target.value)}
-                className="h-11 rounded-xl border border-black/5 bg-[#F4F4F4] px-3.5 text-sm text-gray-800 font-semibold outline-none transition focus:border-[#FF5C00]"
+                className="w-full rounded-full border border-black/5 bg-[#F4F4F4] px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-1 focus:ring-[#FF5C00] appearance-none cursor-pointer"
               >
-                {stages.map((item) => (
-                  <option key={item.label} value={item.value}>{item.label}</option>
+                {stages.map((stg) => (
+                  <option key={stg.value} value={stg.value}>
+                    {stg.label}
+                  </option>
                 ))}
               </select>
+            </div>
 
-              {/* Sort selector */}
+            {/* Sort Toggle selector */}
+            <div className="relative md:col-span-3">
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
-                className="h-11 rounded-xl border border-black/5 bg-[#F4F4F4] px-3.5 text-sm text-gray-800 font-semibold outline-none transition focus:border-[#FF5C00]"
+                className="w-full rounded-full border border-black/5 bg-[#F4F4F4] px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-1 focus:ring-[#FF5C00] appearance-none cursor-pointer"
               >
                 <option value="trending">🔥 Trending</option>
-                <option value="latest">✨ Latest</option>
-                <option value="most_voted">🏆 Most Voted</option>
-                <option value="most_viewed">👁️ Most Viewed</option>
+                <option value="newest">⏰ Newest Pitches</option>
+                <option value="votes">📈 Net Upvotes</option>
               </select>
             </div>
+
           </div>
         </div>
-      </section>
 
-      {/* Split Layout: Grid View + Live Activity Panel */}
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* ── TWO-COLUMN ACTIVE FEED AND MATCH ACTIVITY SIDEBAR ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Main Grid View */}
-          <div className="lg:col-span-9 space-y-6">
-            <div className="flex items-center justify-between text-sm font-semibold text-gray-500">
-              <span>{meta?.total ? `${meta.total} pitches found` : 'Explore validation pitches'}</span>
-              <span className="inline-flex items-center gap-2"><Filter className="h-4 w-4" /> Interactive Feed</span>
+          {/* Main Feed Column */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-400">
+                {isLoading ? 'Fetching projects...' : `${pitches.length} pitches found`}
+              </h2>
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-gray-500">
+                <Filter className="h-3.5 w-3.5" /> Interactive Feed
+              </span>
             </div>
 
-            {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-50 p-4 text-sm font-bold text-red-600">{error}</div>
-            )}
-
             {isLoading ? (
-              <div className="flex min-h-64 items-center justify-center">
+              <div className="flex h-64 items-center justify-center rounded-2xl bg-white border border-black/5 shadow-sm">
                 <Loader2 className="h-8 w-8 animate-spin text-[#FF5C00]" />
               </div>
+            ) : error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-600 font-semibold shadow-sm">
+                {error}
+              </div>
             ) : pitches.length === 0 ? (
-              <div className="rounded-2xl border border-black/5 bg-white p-12 text-center shadow-sm">
-                <h2 className="text-xl font-display font-black text-[#111111] uppercase tracking-tight">No pitches matched your filters</h2>
-                <p className="mt-2 text-sm font-semibold text-gray-500">Clear your search parameters or start a new category!</p>
+              <div className="rounded-2xl bg-white border border-black/5 p-12 text-center shadow-sm">
+                <p className="text-sm font-semibold text-gray-400">No pitches found matching your parameters.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="grid gap-6 sm:grid-cols-2">
                 {pitches.map((pitch) => (
                   <PitchCard
                     key={pitch.id}
@@ -348,15 +334,14 @@ export default function PitchFeed() {
             )}
           </div>
 
-          {/* ⚡ RIGHT SIDEBAR ACTIVITY FEED */}
-          <div className="lg:col-span-3 space-y-6">
-            <div className="flex items-center justify-between text-sm font-semibold text-gray-500">
-              <span className="inline-flex items-center gap-1.5 uppercase text-xs font-black tracking-wider text-gray-400">
-                <Sparkles className="h-3.5 w-3.5 text-[#FF5C00]" /> Match Activity Logs
-              </span>
+          {/* Real-time Match Activity Sidebar */}
+          <div className="lg:col-span-4 rounded-2xl border border-black/5 bg-white p-6 shadow-sm sticky top-6 space-y-6">
+            <div className="flex items-center gap-2 border-b border-black/5 pb-3">
+              <Zap className="h-4 w-4 text-[#FF5C00]" />
+              <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">Match Activity Logs</h3>
             </div>
-            <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm space-y-4">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Recent Collaborations</p>
+            
+            <div className="space-y-6">
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
                 {mockLiveActivities.map((act) => (
                   <div key={act.id} className="relative pl-4 border-l border-[#FF5C00]/20 space-y-1">
@@ -392,7 +377,7 @@ export default function PitchFeed() {
               <button
                 type="button"
                 onClick={() => setPreviewPitch(null)}
-                className="rounded-full bg-[#F4F4F4] border border-black/5 hover:bg-black/10 p-2 text-gray-500 hover:text-[#111111] transition-all"
+                className="rounded-full bg-[#F4F4F4] border border-black/5 hover:bg-black/10 p-2 text-gray-500 hover:text-[#111111] transition-all cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -401,20 +386,105 @@ export default function PitchFeed() {
             {/* Modal Content Scrollable Area */}
             <div className="overflow-y-auto p-6 space-y-6 flex-1">
               
-              {/* Auto-generated One-Liner Summary Box */}
-              {previewPitch.one_liner_summary && (
-                <div className="rounded-xl border border-[#FF5C00]/10 bg-[#FF5C00]/5 p-4 flex gap-3 items-start">
-                  <Sparkles className="h-5 w-5 text-[#FF5C00] shrink-0 mt-0.5" />
+              {/* Modal tabs selector */}
+              <div className="flex border-b border-black/5 pb-2 overflow-x-auto gap-4">
+                <button
+                  type="button"
+                  onClick={() => setActiveModalTab('details')}
+                  className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                    activeModalTab === 'details' ? 'border-[#FF5C00] text-[#FF5C00]' : 'border-transparent text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  📝 Pitch Details
+                </button>
+                
+                {previewPitch.video_url && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveModalTab('video')}
+                    className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                      activeModalTab === 'video' ? 'border-[#FF5C00] text-[#FF5C00]' : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    🎥 Video Pitch
+                  </button>
+                )}
+
+                {previewPitch.slides && previewPitch.slides.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveModalTab('slides')}
+                    className={`pb-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                      activeModalTab === 'slides' ? 'border-[#FF5C00] text-[#FF5C00]' : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    🖼️ Pitch Deck Slides
+                  </button>
+                )}
+              </div>
+
+              {/* Tab 1: Details */}
+              {activeModalTab === 'details' && (
+                <div className="space-y-6 animate-fade-in">
+                  {/* Auto-generated One-Liner Summary Box */}
+                  {previewPitch.one_liner_summary && (
+                    <div className="rounded-xl border border-[#FF5C00]/10 bg-[#FF5C00]/5 p-4 flex gap-3 items-start">
+                      <Sparkles className="h-5 w-5 text-[#FF5C00] shrink-0 mt-0.5" />
+                      <div>
+                        <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5C00]">AI One-Liner Summary</h5>
+                        <p className="mt-1 text-sm font-bold text-gray-800 leading-relaxed">{previewPitch.one_liner_summary}</p>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5C00]">AI One-Liner Summary</h5>
-                    <p className="mt-1 text-sm font-bold text-gray-800 leading-relaxed">{previewPitch.one_liner_summary}</p>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Tagline</h4>
+                    <p className="text-base font-semibold text-gray-700 leading-relaxed bg-[#F9F9F9] border border-black/5 p-4 rounded-xl">
+                      {previewPitch.tagline}
+                    </p>
                   </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Full Description</h4>
+                    <p className="text-sm font-semibold leading-relaxed text-gray-600 whitespace-pre-wrap">
+                      {previewPitch.description}
+                    </p>
+                  </div>
+
+                  {/* Resource Links */}
+                  {(previewPitch.demo_url || previewPitch.github_repo_url) && (
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Resource Links</h4>
+                      <div className="flex flex-wrap gap-3">
+                        {previewPitch.demo_url && (
+                          <a
+                            href={previewPitch.demo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-[#F4F4F4] border border-black/5 hover:bg-black/10 px-4 py-2 text-xs font-bold text-gray-700 transition-all"
+                          >
+                            Live Demo <ArrowUpRight className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                        {previewPitch.github_repo_url && (
+                          <a
+                            href={previewPitch.github_repo_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-[#F4F4F4] border border-black/5 hover:bg-black/10 px-4 py-2 text-xs font-bold text-gray-700 transition-all"
+                          >
+                            <Code2 className="h-3.5 w-3.5" /> GitHub Repository
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Loom / YouTube Video Pitch Embed */}
-              {previewPitch.video_url && (
-                <div>
+              {/* Tab 2: Video Pitch */}
+              {activeModalTab === 'video' && previewPitch.video_url && (
+                <div className="space-y-4 animate-fade-in">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 flex items-center gap-1">
                     <Play className="h-3.5 w-3.5 text-[#FF5C00] fill-current" /> Interactive Elevator Pitch
                   </h4>
@@ -430,54 +500,11 @@ export default function PitchFeed() {
                 </div>
               )}
 
-              {/* Slides Deck Carousel */}
-              {previewPitch.slides && previewPitch.slides.length > 0 && (
-                <div>
+              {/* Tab 3: Slides Deck Carousel */}
+              {activeModalTab === 'slides' && previewPitch.slides && previewPitch.slides.length > 0 && (
+                <div className="space-y-4 animate-fade-in">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Pitch Deck Slide Preview</h4>
                   <SlideCarousel slides={previewPitch.slides} />
-                </div>
-              )}
-
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Tagline</h4>
-                <p className="text-base font-semibold text-gray-700 leading-relaxed bg-[#F9F9F9] border border-black/5 p-4 rounded-xl">
-                  {previewPitch.tagline}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Full Description</h4>
-                <p className="text-sm font-semibold leading-relaxed text-gray-600 whitespace-pre-wrap">
-                  {previewPitch.description}
-                </p>
-              </div>
-
-              {/* Resource Links */}
-              {(previewPitch.demo_url || previewPitch.github_repo_url) && (
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Resource Links</h4>
-                  <div className="flex flex-wrap gap-3">
-                    {previewPitch.demo_url && (
-                      <a
-                        href={previewPitch.demo_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#F4F4F4] border border-black/5 hover:bg-black/10 px-4 py-2 text-xs font-bold text-gray-700 transition-all"
-                      >
-                        Live Demo <ArrowUpRight className="h-3.5 w-3.5" />
-                      </a>
-                    )}
-                    {previewPitch.github_repo_url && (
-                      <a
-                        href={previewPitch.github_repo_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#F4F4F4] border border-black/5 hover:bg-black/10 px-4 py-2 text-xs font-bold text-gray-700 transition-all"
-                      >
-                        <Code2 className="h-3.5 w-3.5" /> GitHub Repository
-                      </a>
-                    )}
-                  </div>
                 </div>
               )}
 
@@ -498,7 +525,7 @@ export default function PitchFeed() {
                   <button
                     type="submit"
                     disabled={isCommenting || !newComment.trim() || !isAuthenticated}
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#FF5C00] hover:bg-[#E65300] px-4 text-xs font-bold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#FF5C00] hover:bg-[#E65300] px-4 text-xs font-bold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {isCommenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                     <span>Post</span>
@@ -531,7 +558,7 @@ export default function PitchFeed() {
                 <button
                   type="button"
                   onClick={(event) => handleInlineVote(event, previewPitch.id, 'upvote')}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-white text-xs font-bold transition-all ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-white text-xs font-bold transition-all cursor-pointer ${
                     previewPitch.user_vote === 'upvote' ? 'bg-[#FF5C00]/10 border-[#FF5C00]/30 text-[#FF5C00]' : 'text-gray-600 hover:bg-black/5'
                   }`}
                 >
@@ -540,7 +567,7 @@ export default function PitchFeed() {
                 <button
                   type="button"
                   onClick={(event) => handleInlineVote(event, previewPitch.id, 'downvote')}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-white text-xs font-bold transition-all ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-white text-xs font-bold transition-all cursor-pointer ${
                     previewPitch.user_vote === 'downvote' ? 'bg-red-500/10 border-red-500/30 text-red-600' : 'text-gray-600 hover:bg-black/5'
                   }`}
                 >
@@ -550,70 +577,15 @@ export default function PitchFeed() {
               
               <Link
                 to={`/pitches/${previewPitch.id}`}
-                onClick={() => setPreviewPitch(null)}
-                className="inline-flex items-center gap-1 rounded-full bg-[#FF5C00] hover:bg-[#E65300] shadow-md shadow-[#FF5C00]/15 px-4 py-2 text-xs font-bold text-white transition-all hover:scale-[1.02]"
+                className="inline-flex items-center gap-1 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15"
               >
                 <span>Full Pitch View</span>
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
 
           </div>
         </div>
-      )}
-    </main>
-  );
-}
-
-// ── SUB-COMPONENT: PITCH DECK SLIDE PREVIEW CAROUSEL ──────────────────
-function SlideCarousel({ slides }) {
-  const [slideIndex, setSlideIndex] = useState(0);
-
-  if (!slides || slides.length === 0) return null;
-
-  return (
-    <div className="relative rounded-xl border border-black/5 overflow-hidden group">
-      <div className="h-56 bg-gray-950 flex items-center justify-center">
-        <img
-          src={slides[slideIndex]}
-          alt={`Slide ${slideIndex + 1}`}
-          className="h-full w-full object-contain"
-        />
-      </div>
-
-      {slides.length > 1 && (
-        <>
-          {/* Controls */}
-          <button
-            type="button"
-            onClick={() => setSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
-            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all opacity-0 group-hover:opacity-100 shadow-md border border-black/5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          
-          <button
-            type="button"
-            onClick={() => setSlideIndex((prev) => (prev + 1) % slides.length)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all opacity-0 group-hover:opacity-100 shadow-md border border-black/5"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </button>
-
-          {/* Dots Indicator */}
-          <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
-            {slides.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setSlideIndex(idx)}
-                className={`h-2 w-2 rounded-full transition-all ${
-                  idx === slideIndex ? 'bg-[#FF5C00] w-3' : 'bg-white/60 hover:bg-white'
-                }`}
-              />
-            ))}
-          </div>
-        </>
       )}
     </div>
   );
@@ -649,103 +621,170 @@ function PitchCard({ pitch, isAuthenticated, handleInlineVote, openQuickView }) 
         </div>
 
         {/* Dynamic Rich-Media Badge Overlays */}
-        <div className="absolute left-3 bottom-3 flex gap-2">
+        <div className="absolute left-3 bottom-3 flex gap-2 z-20">
           {pitch.video_url && (
-            <span className="inline-flex items-center gap-1 rounded bg-[#FF5C00] text-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow">
+            <button
+              type="button"
+              onClick={(event) => openQuickView(event, pitch, 'video')}
+              className="inline-flex items-center gap-1 rounded bg-[#FF5C00] hover:bg-[#E65300] hover:scale-105 active:scale-95 text-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider shadow cursor-pointer transition-all border-none"
+            >
               <Play className="h-2.5 w-2.5 fill-current" /> Video
-            </span>
+            </button>
           )}
           {pitch.slides && pitch.slides.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded bg-gray-900 text-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider shadow">
+            <button
+              type="button"
+              onClick={(event) => openQuickView(event, pitch, 'slides')}
+              className="inline-flex items-center gap-1 rounded bg-gray-950 hover:bg-gray-800 hover:scale-105 active:scale-95 text-white px-2.5 py-1 text-[9px] font-black uppercase tracking-wider shadow cursor-pointer transition-all border-none"
+            >
               Slides ({pitch.slides.length})
-            </span>
+            </button>
           )}
         </div>
         
         {/* Hover Quick View Trigger */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-10">
           <button
             type="button"
-            onClick={(event) => openQuickView(event, pitch)}
+            onClick={(event) => openQuickView(event, pitch, 'details')}
             className="rounded-full bg-white text-[#111111] hover:bg-[#FF5C00] hover:text-white px-5 py-2 text-xs font-bold uppercase tracking-wider transition-all shadow-md transform translate-y-2 group-hover:translate-y-0 duration-300 cursor-pointer"
           >
-            Quick Preview
+            Quick View
           </button>
         </div>
       </div>
 
-      {/* Card Content */}
+      {/* Card Info Content */}
       <div className="flex flex-1 flex-col p-5 z-10 pointer-events-none">
         
-        {/* Founder Bio Block */}
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FF5C00]/10 text-sm font-bold text-[#FF5C00]">
-            {initials(pitch.user?.name)}
+        {/* Creator Info */}
+        <div className="mb-3.5 flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FF5C00]/10 text-xs font-bold text-[#FF5C00]">
+            {initials(pitch.user?.name ?? 'Founder')}
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-gray-800">{pitch.user?.name ?? 'Founder'}</p>
-            <p className="text-xs text-gray-400 font-semibold">Founder</p>
+          <div>
+            <p className="text-xs font-bold text-[#111111] leading-none">{pitch.user?.name ?? 'Founder'}</p>
+            <p className="text-[10px] font-bold text-gray-400 mt-0.5 leading-none">Founder</p>
           </div>
         </div>
 
-        <h2 className="text-xl font-display font-black tracking-tight text-[#111111] group-hover:text-[#FF5C00] transition-colors leading-tight">
+        {/* Title & Tagline */}
+        <h3 className="font-display text-lg font-black tracking-tight text-[#111111] group-hover:text-[#FF5C00] transition-colors">
           {pitch.title}
-        </h2>
-
-        {/* Display One-Liner Summary Highlight if present */}
-        {pitch.one_liner_summary ? (
-          <p className="mt-2 line-clamp-2 text-xs font-bold text-[#FF5C00] uppercase tracking-wide">
+        </h3>
+        
+        {/* Distilled AI One-liner summary (Always featured for clean scannability!) */}
+        {pitch.one_liner_summary && (
+          <p className="mt-2 text-2xs font-bold text-[#FF5C00] leading-normal uppercase bg-[#FF5C00]/5 border border-[#FF5C00]/10 px-2 py-1 rounded">
             💡 {pitch.one_liner_summary}
-          </p>
-        ) : (
-          <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-gray-500 font-semibold">
-            {pitch.tagline}
           </p>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {(pitch.tags ?? []).slice(0, 3).map((tag) => (
-            <span key={tag.id ?? tag.name} className="rounded-full bg-[#F4F4F4] px-2.5 py-0.5 text-2xs text-gray-500 font-bold border border-black/5 uppercase tracking-wider">
-              #{tag.name}
-            </span>
-          ))}
-        </div>
+        <p className="mt-2.5 line-clamp-3 text-xs font-semibold text-gray-500 leading-relaxed">
+          {pitch.tagline}
+        </p>
 
-        {/* Interactive Bottom Bar */}
-        <div className="mt-auto flex items-center justify-between border-t border-black/5 pt-4 text-xs font-bold text-gray-400 uppercase tracking-wider z-20 pointer-events-auto">
-          <div className="flex items-center gap-4">
+        {/* Card Footer Actions (Net votes & comment counter) */}
+        <div className="mt-auto pt-4 border-t border-black/5 flex items-center justify-between text-xs font-bold text-gray-500 pointer-events-auto">
+          
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={(event) => handleInlineVote(event, pitch.id, 'upvote')}
-              className={`inline-flex items-center gap-1 hover:text-[#FF5C00] transition-colors p-1 rounded ${
-                pitch.user_vote === 'upvote' ? 'text-[#FF5C00]' : ''
+              className={`inline-flex items-center justify-center p-1.5 rounded-full border border-black/5 bg-[#F9F9F9] transition-all hover:bg-black/5 cursor-pointer ${
+                pitch.user_vote === 'upvote' ? 'bg-[#FF5C00]/10 border-[#FF5C00]/25 text-[#FF5C00]' : 'text-gray-500'
               }`}
-              title="Upvote pitch"
+              aria-label="Upvote pitch"
             >
-              <ThumbsUp className="h-4 w-4" />
-              <span>{numberCompact(pitch.upvotes_count)}</span>
+              <ThumbsUp className="h-3.5 w-3.5" />
             </button>
             
+            <span className={`text-xs font-black font-display ${totalScore > 0 ? 'text-green-600' : totalScore < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+              {totalScore > 0 ? `+${totalScore}` : totalScore}
+            </span>
+
             <button
               type="button"
               onClick={(event) => handleInlineVote(event, pitch.id, 'downvote')}
-              className={`inline-flex items-center gap-1 hover:text-red-500 transition-colors p-1 rounded ${
-                pitch.user_vote === 'downvote' ? 'text-red-500' : ''
+              className={`inline-flex items-center justify-center p-1.5 rounded-full border border-black/5 bg-[#F9F9F9] transition-all hover:bg-black/5 cursor-pointer ${
+                pitch.user_vote === 'downvote' ? 'bg-red-500/10 border-red-500/25 text-red-500' : 'text-gray-500'
               }`}
-              title="Downvote pitch"
+              aria-label="Downvote pitch"
             >
-              <ThumbsDown className="h-4 w-4" />
-              <span>{numberCompact(pitch.downvotes_count)}</span>
+              <ThumbsDown className="h-3.5 w-3.5" />
             </button>
-
-            <span className="inline-flex items-center gap-1 py-1">
-              <MessageSquare className="h-4 w-4 text-gray-400" />
-              <span>{numberCompact(pitch.comments_count)}</span>
-            </span>
           </div>
-          <ChevronRight className="h-5 w-5 text-[#FF5C00] transition group-hover:translate-x-1" />
+
+          <div className="flex items-center gap-1.5 font-bold">
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>{pitch.comments_count ?? 0}</span>
+          </div>
+
         </div>
       </div>
     </article>
+  );
+}
+
+// ── SUB-COMPONENT: SLIDES CAROUSEL ─────────────────────────────────────
+function SlideCarousel({ slides = [] }) {
+  const [index, setIndex] = useState(0);
+
+  const prev = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIndex((current) => (current === 0 ? slides.length - 1 : current - 1));
+  };
+
+  const next = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIndex((current) => (current === slides.length - 1 ? 0 : current + 1));
+  };
+
+  if (slides.length === 0) return null;
+
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-black/5 bg-black flex items-center justify-center">
+      <img
+        src={slides[index]}
+        alt={`Slide ${index + 1}`}
+        className="max-h-full max-w-full object-contain"
+      />
+      
+      {/* Navigator arrows */}
+      {slides.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={prev}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 rounded-full bg-white/90 hover:bg-white p-2 text-gray-800 hover:text-black transition-all shadow cursor-pointer border-none"
+            aria-label="Previous slide"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full bg-white/90 hover:bg-white p-2 text-gray-800 hover:text-black transition-all shadow cursor-pointer border-none"
+            aria-label="Next slide"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+          
+          {/* Indicator dots */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {slides.map((_, dotIdx) => (
+              <span
+                key={dotIdx}
+                className={`h-1.5 w-1.5 rounded-full transition-all ${
+                  index === dotIdx ? 'bg-[#FF5C00] w-3' : 'bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
