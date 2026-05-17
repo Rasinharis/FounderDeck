@@ -29,6 +29,15 @@ class User extends Authenticatable
         'is_banned',
         'ban_reason',
         'profile_completed',
+        'skills',
+        'linkedin_credentials',
+        'mutual_connections_count',
+        'is_linkedin_verified',
+        'is_angellist_verified',
+        'is_crunchbase_verified',
+        'scorecard_wins',
+        'scorecard_exits',
+        'scorecard_collabs',
     ];
 
     protected $hidden = [
@@ -44,6 +53,11 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_banned' => 'boolean',
             'profile_completed' => 'boolean',
+            'skills' => 'array',
+            'linkedin_credentials' => 'array',
+            'is_linkedin_verified' => 'boolean',
+            'is_angellist_verified' => 'boolean',
+            'is_crunchbase_verified' => 'boolean',
         ];
     }
 
@@ -109,5 +123,10 @@ class User extends Authenticatable
     public function reports(): HasMany
     {
         return $this->hasMany(Report::class, 'reporter_id');
+    }
+
+    public function bookmarks(): HasMany
+    {
+        return $this->hasMany(Bookmark::class);
     }
 }

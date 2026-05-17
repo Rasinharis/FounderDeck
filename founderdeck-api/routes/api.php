@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CollabController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\AiController;
 use App\Http\Controllers\Api\Admin\AdminController;
@@ -102,6 +103,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Profile ─────────────────────────────────────────────
     Route::put('/profile', [ProfileController::class, 'update']);
+    Route::post('/profile/sync-linkedin', [ProfileController::class, 'syncLinkedin']);
+
+    // ── Bookmarks ───────────────────────────────────────────
+    Route::get('/bookmarks', [BookmarkController::class, 'index']);
+    Route::post('/posts/{post}/bookmark', [BookmarkController::class, 'toggle']);
 
     // ── Reports ─────────────────────────────────────────────
     Route::post('/report', [ReportController::class, 'store']);

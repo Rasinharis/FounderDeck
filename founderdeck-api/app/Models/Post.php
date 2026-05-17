@@ -74,6 +74,11 @@ class Post extends Model
         return $this->morphMany(Report::class, 'reportable');
     }
 
+    public function bookmarks(): HasMany
+    {
+        return $this->hasMany(Bookmark::class);
+    }
+
     // ── Accessors ───────────────────────────────────────────
 
     public function getUpvotesCountAttribute(): int
@@ -84,5 +89,27 @@ class Post extends Model
     public function getDownvotesCountAttribute(): int
     {
         return $this->votes()->where('vote_type', 'down')->count();
+    }
+
+    public function getWeightedScoreAttribute(): int
+    {
+        $up = $this->votes()->where('vote_type', 'up')->sum('weight');
+        $down = $this->votes()->where('vote_type', 'down')->sum('weight');
+        return $up - $down;
+    }
+
+    public function getSeekingCofounderCountAttribute(): int
+    {
+        return $this->votes()->where('vote_type', 'seeking_cofounder')->count();
+    }
+
+    public function getLookingToInvestCountAttribute(): int
+    {
+        return $this->votes()->where('vote_type', 'looking_to_invest')->count();
+    }
+
+    public function getNeedAdvisorCountAttribute(): int
+    {
+        return $this->votes()->where('vote_type', 'need_advisor')->count();
     }
 }

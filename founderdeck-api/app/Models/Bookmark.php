@@ -7,15 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class Vote extends Model
+class Bookmark extends Model
 {
     use HasFactory, HasUuids;
 
     protected $fillable = [
         'user_id',
         'post_id',
-        'vote_type',
-        'weight',
     ];
 
     // ── Relationships ───────────────────────────────────────

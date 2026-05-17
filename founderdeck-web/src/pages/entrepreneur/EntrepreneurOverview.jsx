@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { getMyPosts } from '../../api/posts';
-import { numberCompact } from '../../lib/format';
+import { numberCompact, formatStage } from '../../lib/format';
 import {
   Handshake,
   MessageSquare,
@@ -17,23 +17,28 @@ import {
   TrendingDown,
   Flame,
   Snowflake,
+  Heart,
 } from 'lucide-react';
 
 export default function EntrepreneurOverview() {
   const [posts, setPosts] = useState([]);
   const [collabs, setCollabs] = useState([]);
+  const [bookmarks, setBookmarks] = useState([]);
   const [activeTab, setActiveTab] = useState('performance');
 
   useEffect(() => {
     Promise.all([
       getMyPosts({ per_page: 6 }),
       api.get('/collab/received'),
-    ]).then(([postResponse, collabResponse]) => {
+      api.get('/bookmarks'),
+    ]).then(([postResponse, collabResponse, bookmarkResponse]) => {
       setPosts(postResponse.data.data ?? []);
       setCollabs(collabResponse.data.data ?? []);
+      setBookmarks(bookmarkResponse.data.data ?? []);
     }).catch(() => {
       setPosts([]);
       setCollabs([]);
+      setBookmarks([]);
     });
   }, []);
 
@@ -365,6 +370,39 @@ export default function EntrepreneurOverview() {
           </div>
         )}
       </section>
+
+      {/* Saved Bookmarks Section */}
+      <section className="rounded-2xl border border-black/5 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-display font-black text-[#111111] uppercase tracking-tight flex items-center gap-2">
+            <Heart className="h-5 w-5 text-red-500 fill-red-500" /> Bookmarked & Saved Pitches
+          </h2>
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{bookmarks.length} saved</span>
+        </div>
+        {bookmarks.length === 0 ? (
+          <p className="rounded-xl bg-[#F4F4F4] p-5 text-xs font-bold text-gray-400 italic text-center">
+            No saved pitches yet. Browse the pitches explorer to bookmark promising startups!
+          </p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {bookmarks.map((bookmark) => {
+              const pitchItem = bookmark.post;
+              if (!pitchItem) return null;
+              return (
+                <Link key={pitchItem.id} to={`/pitches/${pitchItem.id}`} className="block rounded-xl border border-black/5 bg-[#F4F4F4] p-4 transition-all hover:border-red-500/30 hover:bg-white hover:shadow-sm">
+                  <div className="mb-2 flex flex-wrap gap-1.5 text-[9px] font-black uppercase tracking-wider">
+                    <span className="rounded bg-[#FF5C00]/10 px-2.5 py-0.5 text-[#FF5C00]">{pitchItem.industry}</span>
+                    <span className="rounded bg-gray-950 px-2.5 py-0.5 text-white">{formatStage(pitchItem.funding_stage)}</span>
+                  </div>
+                  <h3 className="font-display font-bold text-[#111111] line-clamp-1">{pitchItem.title}</h3>
+                  <p className="mt-1 line-clamp-1 text-xs font-semibold text-gray-400">{pitchItem.tagline}</p>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
     </div>
   );
 }

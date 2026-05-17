@@ -25,11 +25,20 @@ class VoteController extends Controller
     public function vote(Request $request, Post $post): JsonResponse
     {
         $request->validate([
-            'vote_type' => ['required', 'in:up,down'],
+            'vote_type' => ['required', 'in:up,down,seeking_cofounder,looking_to_invest,need_advisor'],
         ]);
 
         $user = $request->user();
         $voteType = $request->vote_type;
+
+        // Calculate dynamic vote weight based on credibility
+        $weight = 1;
+        if ($user->role === 'investor') {
+            $weight = 2;
+            if ($user->is_linkedin_verified || $user->is_angellist_verified || $user->is_crunchbase_verified) {
+                $weight = 3;
+            }
+        }
 
         $existingVote = Vote::where('user_id', $user->id)
             ->where('post_id', $post->id)
@@ -44,6 +53,7 @@ class VoteController extends Controller
                 'user_id' => $user->id,
                 'post_id' => $post->id,
                 'vote_type' => $voteType,
+                'weight' => $weight,
             ]);
             $userVote = $voteType;
             if ($voteType === 'up') $isNewUpvote = true;
@@ -53,7 +63,10 @@ class VoteController extends Controller
             $userVote = null;
         } else {
             // Different vote — update
-            $existingVote->update(['vote_type' => $voteType]);
+            $existingVote->update([
+                'vote_type' => $voteType,
+                'weight' => $weight,
+            ]);
             $userVote = $voteType;
             if ($voteType === 'up') $isNewUpvote = true;
         }
@@ -61,6 +74,10 @@ class VoteController extends Controller
         // Get fresh counts
         $upvotes = $post->votes()->where('vote_type', 'up')->count();
         $downvotes = $post->votes()->where('vote_type', 'down')->count();
+        $seekingCofounder = $post->votes()->where('vote_type', 'seeking_cofounder')->count();
+        $lookingToInvest = $post->votes()->where('vote_type', 'looking_to_invest')->count();
+        $needAdvisor = $post->votes()->where('vote_type', 'need_advisor')->count();
+        $weightedScore = $post->weighted_score;
 
         // Dispatch notification/event if it's a new upvote and not self-voting
         if ($isNewUpvote && $user->id !== $post->user_id) {
@@ -71,7 +88,7 @@ class VoteController extends Controller
                     'post_id' => $post->id,
                     'post_title' => $post->title,
                     'actor_name' => $user->name,
-                    'new_score' => $upvotes - $downvotes,
+                    'new_score' => $weightedScore,
                 ],
             ]);
 
@@ -80,13 +97,17 @@ class VoteController extends Controller
                 $post->id,
                 $post->title,
                 $user->name,
-                $upvotes - $downvotes
+                $weightedScore
             ));
         }
 
         return response()->json([
             'upvotes' => $upvotes,
             'downvotes' => $downvotes,
+            'weighted_score' => $weightedScore,
+            'seeking_cofounder_count' => $seekingCofounder,
+            'looking_to_invest_count' => $lookingToInvest,
+            'need_advisor_count' => $needAdvisor,
             'user_vote' => $userVote,
         ]);
     }

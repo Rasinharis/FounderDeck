@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { getPosts } from '../../api/posts';
@@ -23,6 +23,10 @@ import {
   X,
   Send,
   Zap,
+  Heart,
+  Coins,
+  Award,
+  Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -100,13 +104,15 @@ export default function PitchFeed() {
     return () => clearInterval(timer);
   }, []);
 
-  // Handle inline vote directly from card
+  // Handle inline vote/intent reaction from card or modal
   const handleInlineVote = async (event, pitchId, voteType) => {
-    event.preventDefault();
-    event.stopPropagation();
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
 
     if (!isAuthenticated) {
-      toast.error('Please log in to vote.');
+      toast.error('Please log in to cast a signal or vote.');
       return;
     }
 
@@ -120,6 +126,10 @@ export default function PitchFeed() {
                 ...item,
                 upvotes_count: data.upvotes,
                 downvotes_count: data.downvotes,
+                weighted_score: data.weighted_score,
+                seeking_cofounder_count: data.seeking_cofounder_count,
+                looking_to_invest_count: data.looking_to_invest_count,
+                need_advisor_count: data.need_advisor_count,
                 user_vote: data.user_vote,
               }
             : item
@@ -131,13 +141,59 @@ export default function PitchFeed() {
           ...current,
           upvotes_count: data.upvotes,
           downvotes_count: data.downvotes,
+          weighted_score: data.weighted_score,
+          seeking_cofounder_count: data.seeking_cofounder_count,
+          looking_to_invest_count: data.looking_to_invest_count,
+          need_advisor_count: data.need_advisor_count,
           user_vote: data.user_vote,
         }));
       }
 
-      toast.success(voteType === 'upvote' ? 'Upvoted pitch!' : 'Downvoted pitch.');
+      const formattedLabel = {
+        up: 'Upvoted pitch!',
+        down: 'Downvoted pitch.',
+        seeking_cofounder: '🤝 Intent cast: Seeking Co-Founder',
+        looking_to_invest: '💸 Intent cast: Looking to Invest',
+        need_advisor: '💡 Intent cast: Need Advisor',
+      }[voteType] || 'Signal updated!';
+
+      toast.success(formattedLabel);
     } catch (voteError) {
       toast.error(voteError.response?.data?.message || 'Could not save your vote.');
+    }
+  };
+
+  // Toggle Bookmark for Pitch
+  const handleBookmarkToggle = async (event, pitchId) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!isAuthenticated) {
+      toast.error('Please log in to save bookmarks.');
+      return;
+    }
+
+    try {
+      const { data } = await api.post(`/posts/${pitchId}/bookmark`);
+      
+      setPitches((current) =>
+        current.map((item) =>
+          item.id === pitchId
+            ? { ...item, is_bookmarked: data.is_bookmarked }
+            : item
+        )
+      );
+
+      if (previewPitch && previewPitch.id === pitchId) {
+        setPreviewPitch((current) => ({
+          ...current,
+          is_bookmarked: data.is_bookmarked,
+        }));
+      }
+
+      toast.success(data.message);
+    } catch (err) {
+      toast.error('Bookmark update failed.');
     }
   };
 
@@ -286,14 +342,14 @@ export default function PitchFeed() {
               >
                 <option value="trending">🔥 Trending</option>
                 <option value="newest">⏰ Newest Pitches</option>
-                <option value="votes">📈 Net Upvotes</option>
+                <option value="votes">📈 Net Net score</option>
               </select>
             </div>
 
           </div>
         </div>
 
-        {/* ── TWO-COLUMN ACTIVE FEED AND MATCH ACTIVITY SIDEBAR ── */}
+        {/* ── TWO-COLUMN ACTIVE FEED AND MATCH SIDEBAR ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* Main Feed Column */}
@@ -327,6 +383,7 @@ export default function PitchFeed() {
                     pitch={pitch}
                     isAuthenticated={isAuthenticated}
                     handleInlineVote={handleInlineVote}
+                    handleBookmarkToggle={handleBookmarkToggle}
                     openQuickView={openQuickView}
                   />
                 ))}
@@ -372,7 +429,17 @@ export default function PitchFeed() {
                 <span className="rounded-md bg-[#FF5C00]/10 px-2.5 py-0.5 text-xs font-bold uppercase text-[#FF5C00]">
                   {previewPitch.industry} &bull; {formatStage(previewPitch.funding_stage)}
                 </span>
-                <h3 className="text-2xl font-display font-black tracking-tight text-[#111111] mt-1">{previewPitch.title}</h3>
+                <div className="flex items-center gap-3 mt-1">
+                  <h3 className="text-2xl font-display font-black tracking-tight text-[#111111]">{previewPitch.title}</h3>
+                  <button
+                    type="button"
+                    onClick={(event) => handleBookmarkToggle(event, previewPitch.id)}
+                    className="p-1.5 rounded-full hover:bg-black/5 text-gray-400 hover:text-red-500 transition-all cursor-pointer border-none bg-transparent"
+                    title={previewPitch.is_bookmarked ? "Remove Bookmark" : "Bookmark Pitch"}
+                  >
+                    <Heart className={`h-5 w-5 ${previewPitch.is_bookmarked ? 'fill-red-500 text-red-500' : ''}`} />
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
@@ -437,16 +504,36 @@ export default function PitchFeed() {
                     </div>
                   )}
 
+                  {/* Intent Reactions Indicators Bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 border border-black/5 p-4 rounded-xl">
+                    <div className="text-center p-2 rounded bg-white border border-black/5 shadow-inner">
+                      <span className="block text-[10px] font-black text-gray-400 uppercase">Credibility score</span>
+                      <span className="text-lg font-display font-black text-[#FF5C00]">{previewPitch.weighted_score ?? 0}</span>
+                    </div>
+                    <div className="text-center p-2 rounded bg-white border border-black/5 shadow-inner">
+                      <span className="block text-[10px] font-black text-gray-400 uppercase">🤝 Seeking Co-founder</span>
+                      <span className="text-lg font-display font-black text-gray-800">{previewPitch.seeking_cofounder_count ?? 0}</span>
+                    </div>
+                    <div className="text-center p-2 rounded bg-white border border-black/5 shadow-inner">
+                      <span className="block text-[10px] font-black text-gray-400 uppercase">💸 Looking to Invest</span>
+                      <span className="text-lg font-display font-black text-gray-800">{previewPitch.looking_to_invest_count ?? 0}</span>
+                    </div>
+                    <div className="text-center p-2 rounded bg-white border border-black/5 shadow-inner">
+                      <span className="block text-[10px] font-black text-gray-400 uppercase">💡 Need Advisor</span>
+                      <span className="text-lg font-display font-black text-gray-800">{previewPitch.need_advisor_count ?? 0}</span>
+                    </div>
+                  </div>
+
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Tagline</h4>
-                    <p className="text-base font-semibold text-gray-700 leading-relaxed bg-[#F9F9F9] border border-black/5 p-4 rounded-xl">
+                    <p className="text-sm font-semibold text-gray-700 leading-relaxed bg-[#F9F9F9] border border-black/5 p-4 rounded-xl">
                       {previewPitch.tagline}
                     </p>
                   </div>
 
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Full Description</h4>
-                    <p className="text-sm font-semibold leading-relaxed text-gray-600 whitespace-pre-wrap">
+                    <p className="text-xs font-semibold leading-relaxed text-gray-600 whitespace-pre-wrap">
                       {previewPitch.description}
                     </p>
                   </div>
@@ -525,7 +612,7 @@ export default function PitchFeed() {
                   <button
                     type="submit"
                     disabled={isCommenting || !newComment.trim() || !isAuthenticated}
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#FF5C00] hover:bg-[#E65300] px-4 text-xs font-bold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#FF5C00] hover:bg-[#E65300] px-4 text-xs font-bold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer border-none"
                   >
                     {isCommenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                     <span>Post</span>
@@ -553,31 +640,59 @@ export default function PitchFeed() {
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="flex justify-between items-center bg-[#F9F9F9] border-t border-black/5 p-4">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-[#F9F9F9] border-t border-black/5 p-4">
+              {/* Premium Reaction Picker in modal */}
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={(event) => handleInlineVote(event, previewPitch.id, 'upvote')}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-white text-xs font-bold transition-all cursor-pointer ${
-                    previewPitch.user_vote === 'upvote' ? 'bg-[#FF5C00]/10 border-[#FF5C00]/30 text-[#FF5C00]' : 'text-gray-600 hover:bg-black/5'
+                  onClick={() => handleInlineVote(null, previewPitch.id, 'up')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                    previewPitch.user_vote === 'up' ? 'bg-[#FF5C00]/15 border-[#FF5C00]/30 text-[#FF5C00]' : 'bg-white border-black/5 text-gray-600 hover:bg-black/5'
                   }`}
                 >
-                  <ThumbsUp className="h-3.5 w-3.5" /> Upvote
+                  👍 Up ({previewPitch.upvotes_count ?? 0})
                 </button>
                 <button
                   type="button"
-                  onClick={(event) => handleInlineVote(event, previewPitch.id, 'downvote')}
-                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-white text-xs font-bold transition-all cursor-pointer ${
-                    previewPitch.user_vote === 'downvote' ? 'bg-red-500/10 border-red-500/30 text-red-600' : 'text-gray-600 hover:bg-black/5'
+                  onClick={() => handleInlineVote(null, previewPitch.id, 'down')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                    previewPitch.user_vote === 'down' ? 'bg-red-500/15 border-red-500/30 text-red-600' : 'bg-white border-black/5 text-gray-600 hover:bg-black/5'
                   }`}
                 >
-                  <ThumbsDown className="h-3.5 w-3.5" /> Downvote
+                  👎 Down ({previewPitch.downvotes_count ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInlineVote(null, previewPitch.id, 'seeking_cofounder')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                    previewPitch.user_vote === 'seeking_cofounder' ? 'bg-blue-600/15 border-blue-600/30 text-blue-600' : 'bg-white border-black/5 text-gray-600 hover:bg-black/5'
+                  }`}
+                >
+                  🤝 Partner
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInlineVote(null, previewPitch.id, 'looking_to_invest')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                    previewPitch.user_vote === 'looking_to_invest' ? 'bg-emerald-600/15 border-emerald-600/30 text-emerald-600' : 'bg-white border-black/5 text-gray-600 hover:bg-black/5'
+                  }`}
+                >
+                  💸 Invest
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInlineVote(null, previewPitch.id, 'need_advisor')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${
+                    previewPitch.user_vote === 'need_advisor' ? 'bg-amber-600/15 border-amber-600/30 text-amber-600' : 'bg-white border-black/5 text-gray-600 hover:bg-black/5'
+                  }`}
+                >
+                  💡 Advise
                 </button>
               </div>
               
               <Link
                 to={`/pitches/${previewPitch.id}`}
-                className="inline-flex items-center gap-1 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2 text-xs font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15"
               >
                 <span>Full Pitch View</span>
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -592,12 +707,26 @@ export default function PitchFeed() {
 }
 
 // ── SUB-COMPONENT: PITCH CARD ──────────────────────────────────────────
-function PitchCard({ pitch, isAuthenticated, handleInlineVote, openQuickView }) {
+function PitchCard({ pitch, isAuthenticated, handleInlineVote, handleBookmarkToggle, openQuickView }) {
   const cover = getPostImage(pitch);
-  const totalScore = (pitch.upvotes_count ?? 0) - (pitch.downvotes_count ?? 0);
+  const totalScore = pitch.weighted_score ?? ((pitch.upvotes_count ?? 0) - (pitch.downvotes_count ?? 0));
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
+
+  // Close picker on clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        setShowPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   
   return (
-    <article className="group relative flex min-h-[400px] flex-col overflow-hidden rounded-2xl border border-black/5 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#FF5C00]/40 hover:shadow-lg">
+    <article className="group relative flex min-h-[420px] flex-col overflow-hidden rounded-2xl border border-black/5 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-[#FF5C00]/40 hover:shadow-lg">
+      
       <Link to={`/pitches/${pitch.id}`} className="absolute inset-0 z-0" aria-label="View pitch details" />
 
       {/* Banner Cover with Slide / Video indicators */}
@@ -619,6 +748,16 @@ function PitchCard({ pitch, isAuthenticated, handleInlineVote, openQuickView }) 
         <div className="absolute right-3 top-3 rounded-md bg-gray-950 px-2.5 py-0.5 text-xs font-bold text-white">
           {formatStage(pitch.funding_stage)}
         </div>
+
+        {/* Bookmark Ribbon Button */}
+        <button
+          type="button"
+          onClick={(event) => handleBookmarkToggle(event, pitch.id)}
+          className="absolute right-3 top-12 z-25 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 border border-black/5 hover:bg-white text-gray-400 hover:text-red-500 hover:scale-105 active:scale-95 transition-all shadow cursor-pointer"
+          title={pitch.is_bookmarked ? "Remove Bookmark" : "Bookmark Pitch"}
+        >
+          <Heart className={`h-4 w-4 ${pitch.is_bookmarked ? 'fill-red-500 text-red-500' : ''}`} />
+        </button>
 
         {/* Dynamic Rich-Media Badge Overlays */}
         <div className="absolute left-3 bottom-3 flex gap-2 z-20">
@@ -658,65 +797,124 @@ function PitchCard({ pitch, isAuthenticated, handleInlineVote, openQuickView }) 
       <div className="flex flex-1 flex-col p-5 z-10 pointer-events-none">
         
         {/* Creator Info */}
-        <div className="mb-3.5 flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FF5C00]/10 text-xs font-bold text-[#FF5C00]">
-            {initials(pitch.user?.name ?? 'Founder')}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FF5C00]/10 text-xs font-bold text-[#FF5C00]">
+              {initials(pitch.user?.name ?? 'Founder')}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[#111111] leading-none">{pitch.user?.name ?? 'Founder'}</p>
+              <p className="text-[10px] font-bold text-gray-400 mt-0.5 leading-none">Founder</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold text-[#111111] leading-none">{pitch.user?.name ?? 'Founder'}</p>
-            <p className="text-[10px] font-bold text-gray-400 mt-0.5 leading-none">Founder</p>
+
+          {/* Active Intent Icons (seeking_cofounder, looking_to_invest, need_advisor counts) */}
+          <div className="flex items-center gap-2 text-[10px] font-black text-gray-400">
+            {pitch.seeking_cofounder_count > 0 && (
+              <span className="flex items-center gap-0.5 bg-blue-50 border border-blue-100 rounded px-1 text-blue-600" title="Seeking Co-Founder">
+                🤝 {pitch.seeking_cofounder_count}
+              </span>
+            )}
+            {pitch.looking_to_invest_count > 0 && (
+              <span className="flex items-center gap-0.5 bg-emerald-50 border border-emerald-100 rounded px-1 text-emerald-600" title="Looking to Invest">
+                💸 {pitch.looking_to_invest_count}
+              </span>
+            )}
+            {pitch.need_advisor_count > 0 && (
+              <span className="flex items-center gap-0.5 bg-amber-50 border border-amber-100 rounded px-1 text-amber-600" title="Need Advisor">
+                💡 {pitch.need_advisor_count}
+              </span>
+            )}
           </div>
         </div>
 
         {/* Title & Tagline */}
-        <h3 className="font-display text-lg font-black tracking-tight text-[#111111] group-hover:text-[#FF5C00] transition-colors">
+        <h3 className="font-display text-lg font-black tracking-tight text-[#111111] group-hover:text-[#FF5C00] transition-colors line-clamp-1">
           {pitch.title}
         </h3>
         
         {/* Distilled AI One-liner summary (Always featured for clean scannability!) */}
         {pitch.one_liner_summary && (
-          <p className="mt-2 text-2xs font-bold text-[#FF5C00] leading-normal uppercase bg-[#FF5C00]/5 border border-[#FF5C00]/10 px-2 py-1 rounded">
+          <p className="mt-2 text-[10px] font-black text-[#FF5C00] leading-normal uppercase bg-[#FF5C00]/5 border border-[#FF5C00]/10 px-2.5 py-1 rounded">
             💡 {pitch.one_liner_summary}
           </p>
         )}
 
-        <p className="mt-2.5 line-clamp-3 text-xs font-semibold text-gray-500 leading-relaxed">
+        <p className="mt-2.5 line-clamp-2 text-xs font-semibold text-gray-500 leading-relaxed">
           {pitch.tagline}
         </p>
 
         {/* Card Footer Actions (Net votes & comment counter) */}
-        <div className="mt-auto pt-4 border-t border-black/5 flex items-center justify-between text-xs font-bold text-gray-500 pointer-events-auto">
+        <div className="mt-auto pt-4 border-t border-black/5 flex items-center justify-between text-xs font-bold text-gray-500 pointer-events-auto relative">
           
-          <div className="flex items-center gap-3">
+          {/* Reaction Cast Trigger */}
+          <div className="flex items-center gap-2" ref={pickerRef}>
             <button
               type="button"
-              onClick={(event) => handleInlineVote(event, pitch.id, 'upvote')}
-              className={`inline-flex items-center justify-center p-1.5 rounded-full border border-black/5 bg-[#F9F9F9] transition-all hover:bg-black/5 cursor-pointer ${
-                pitch.user_vote === 'upvote' ? 'bg-[#FF5C00]/10 border-[#FF5C00]/25 text-[#FF5C00]' : 'text-gray-500'
-              }`}
-              aria-label="Upvote pitch"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPicker(!showPicker); }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-black/5 bg-[#F9F9F9] hover:bg-black/5 transition-all text-xs font-bold cursor-pointer"
             >
-              <ThumbsUp className="h-3.5 w-3.5" />
+              <span>👍 Signal</span>
+              <ChevronRight className="h-3 w-3 rotate-90" />
             </button>
-            
-            <span className={`text-xs font-black font-display ${totalScore > 0 ? 'text-green-600' : totalScore < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+
+            {/* Glowing Net Score Indicator */}
+            <span className={`text-xs font-black font-display px-2 py-0.5 rounded ${
+              totalScore > 0 ? 'bg-green-50 text-green-600 border border-green-150' : 
+              totalScore < 0 ? 'bg-red-50 text-red-500 border border-red-150' : 'bg-gray-50 text-gray-500'
+            }`}>
               {totalScore > 0 ? `+${totalScore}` : totalScore}
             </span>
 
-            <button
-              type="button"
-              onClick={(event) => handleInlineVote(event, pitch.id, 'downvote')}
-              className={`inline-flex items-center justify-center p-1.5 rounded-full border border-black/5 bg-[#F9F9F9] transition-all hover:bg-black/5 cursor-pointer ${
-                pitch.user_vote === 'downvote' ? 'bg-red-500/10 border-red-500/25 text-red-500' : 'text-gray-500'
-              }`}
-              aria-label="Downvote pitch"
-            >
-              <ThumbsDown className="h-3.5 w-3.5" />
-            </button>
+            {/* Premium Sliding Picker Panel */}
+            {showPicker && (
+              <div className="absolute bottom-12 left-0 z-50 flex items-center gap-1.5 bg-white border border-black/5 rounded-full p-1.5 shadow-xl animate-scale-up">
+                <button
+                  type="button"
+                  onClick={(e) => { handleInlineVote(e, pitch.id, 'up'); setShowPicker(false); }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-all text-sm hover:scale-115 active:scale-95 cursor-pointer border-none bg-transparent"
+                  title="Upvote 👍"
+                >
+                  👍
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { handleInlineVote(e, pitch.id, 'down'); setShowPicker(false); }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-all text-sm hover:scale-115 active:scale-95 cursor-pointer border-none bg-transparent"
+                  title="Downvote 👎"
+                >
+                  👎
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { handleInlineVote(e, pitch.id, 'seeking_cofounder'); setShowPicker(false); }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-all text-sm hover:scale-115 active:scale-95 cursor-pointer border-none bg-transparent"
+                  title="Partnership 🤝"
+                >
+                  🤝
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { handleInlineVote(e, pitch.id, 'looking_to_invest'); setShowPicker(false); }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-all text-sm hover:scale-115 active:scale-95 cursor-pointer border-none bg-transparent"
+                  title="Looking to Invest 💸"
+                >
+                  💸
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { handleInlineVote(e, pitch.id, 'need_advisor'); setShowPicker(false); }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-all text-sm hover:scale-115 active:scale-95 cursor-pointer border-none bg-transparent"
+                  title="Advisor Needed 💡"
+                >
+                  💡
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 font-bold">
-            <MessageSquare className="h-3.5 w-3.5" />
+            <MessageSquare className="h-3.5 w-3.5 text-gray-400" />
             <span>{pitch.comments_count ?? 0}</span>
           </div>
 

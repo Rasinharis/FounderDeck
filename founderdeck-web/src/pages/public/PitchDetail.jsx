@@ -17,6 +17,10 @@ import {
   ThumbsDown,
   ThumbsUp,
   UserPlus,
+  Heart,
+  Handshake,
+  Coins,
+  Award
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -60,7 +64,7 @@ export default function PitchDetail() {
 
   const handleVote = async (voteType) => {
     if (!isAuthenticated) {
-      toast.error('Please log in to vote.');
+      toast.error('Please log in to cast a signal or vote.');
       return;
     }
 
@@ -70,10 +74,42 @@ export default function PitchDetail() {
         ...current,
         upvotes_count: data.upvotes,
         downvotes_count: data.downvotes,
+        weighted_score: data.weighted_score,
+        seeking_cofounder_count: data.seeking_cofounder_count,
+        looking_to_invest_count: data.looking_to_invest_count,
+        need_advisor_count: data.need_advisor_count,
         user_vote: data.user_vote,
       }));
+
+      const formattedLabel = {
+        up: 'Upvoted pitch!',
+        down: 'Downvoted pitch.',
+        seeking_cofounder: '🤝 Intent cast: Seeking Co-Founder',
+        looking_to_invest: '💸 Intent cast: Looking to Invest',
+        need_advisor: '💡 Intent cast: Need Advisor',
+      }[voteType] || 'Signal updated!';
+
+      toast.success(formattedLabel);
     } catch (voteError) {
       toast.error(voteError.response?.data?.message || 'Could not save your vote.');
+    }
+  };
+
+  const handleBookmarkToggle = async () => {
+    if (!isAuthenticated) {
+      toast.error('Please log in to save bookmarks.');
+      return;
+    }
+
+    try {
+      const { data } = await api.post(`/posts/${id}/bookmark`);
+      setPitch((current) => ({
+        ...current,
+        is_bookmarked: data.is_bookmarked,
+      }));
+      toast.success(data.message);
+    } catch (err) {
+      toast.error('Bookmark update failed.');
     }
   };
 
@@ -145,9 +181,10 @@ export default function PitchDetail() {
   }
 
   const cover = getPostImage(pitch);
+  const totalScore = pitch.weighted_score ?? ((pitch.upvotes_count ?? 0) - (pitch.downvotes_count ?? 0));
 
   return (
-    <main className="min-h-screen bg-[#EAEAEA] pt-16 text-[#111111]">
+    <main className="min-h-screen bg-[#EAEAEA] pt-16 text-[#111111] pb-12">
       <section className="border-b border-black/5 bg-[#F4F4F4]/50 backdrop-blur-md">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8">
           <div>
@@ -155,7 +192,21 @@ export default function PitchDetail() {
               <span className="rounded-md bg-[#FF5C00]/10 px-3 py-1 text-sm font-bold text-[#FF5C00]">{pitch.industry}</span>
               <span className="rounded-md bg-gray-950 px-3 py-1 text-sm font-bold text-white">{formatStage(pitch.funding_stage)}</span>
             </div>
-            <h1 className="max-w-4xl text-4xl font-display font-black tracking-tight sm:text-5xl text-[#111111]">{pitch.title}</h1>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="max-w-4xl text-4xl font-display font-black tracking-tight sm:text-5xl text-[#111111]">
+                {pitch.title}
+              </h1>
+              <button
+                type="button"
+                onClick={handleBookmarkToggle}
+                className="p-2 rounded-full hover:bg-black/5 text-gray-400 hover:text-red-500 transition-all cursor-pointer border-none bg-transparent"
+                title={pitch.is_bookmarked ? "Remove Bookmark" : "Bookmark Pitch"}
+              >
+                <Heart className={`h-7 w-7 ${pitch.is_bookmarked ? 'fill-red-500 text-red-500' : ''}`} />
+              </button>
+            </div>
+
             <p className="mt-4 max-w-3xl text-lg leading-8 text-gray-500 font-semibold">{pitch.tagline}</p>
 
             <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -191,7 +242,7 @@ export default function PitchDetail() {
             </div>
             <div className="grid grid-cols-3 divide-x divide-black/5 border-t border-black/5 text-center">
               <div className="p-4">
-                <p className="text-xl font-display font-black text-[#111111]">{numberCompact((pitch.upvotes_count ?? 0) - (pitch.downvotes_count ?? 0))}</p>
+                <p className="text-xl font-display font-black text-[#FF5C00]">{numberCompact(totalScore)}</p>
                 <p className="text-xs font-semibold text-gray-400">Score</p>
               </div>
               <div className="p-4">
@@ -295,7 +346,7 @@ export default function PitchDetail() {
                 <button
                   type="submit"
                   disabled={!isAuthenticated || isCommenting || !comment.trim()}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer border-none"
                 >
                   {isCommenting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Post Comment
@@ -325,26 +376,68 @@ export default function PitchDetail() {
         </div>
 
         <aside className="space-y-5">
-          <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-lg font-display font-black text-[#111111]">Vote on the idea</h2>
-            <div className="grid grid-cols-2 gap-3">
+          
+          {/* Reaction intent selector */}
+          <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm space-y-4">
+            <h2 className="text-lg font-display font-black text-[#111111] uppercase tracking-tight">Signal Intent</h2>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => handleVote('up')}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${pitch.user_vote === 'up' ? 'bg-[#FF5C00] text-white shadow-md shadow-[#FF5C00]/15' : 'bg-[#F4F4F4] text-gray-700 hover:bg-black/5'}`}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition border cursor-pointer ${
+                  pitch.user_vote === 'up' ? 'bg-[#FF5C00] text-white border-[#FF5C00] shadow-sm' : 'bg-[#F4F4F4] border-black/5 text-gray-700 hover:bg-black/5'
+                }`}
               >
-                <ThumbsUp className="h-4 w-4" />
-                {numberCompact(pitch.upvotes_count)}
+                👍 Up ({pitch.upvotes_count ?? 0})
               </button>
               <button
                 type="button"
                 onClick={() => handleVote('down')}
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${pitch.user_vote === 'down' ? 'bg-red-500 text-white shadow-md shadow-red-500/15' : 'bg-[#F4F4F4] text-gray-700 hover:bg-black/5'}`}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition border cursor-pointer ${
+                  pitch.user_vote === 'down' ? 'bg-red-500 text-white border-red-500 shadow-sm' : 'bg-[#F4F4F4] border-black/5 text-gray-700 hover:bg-black/5'
+                }`}
               >
-                <ThumbsDown className="h-4 w-4" />
-                {numberCompact(pitch.downvotes_count)}
+                👎 Down ({pitch.downvotes_count ?? 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVote('seeking_cofounder')}
+                className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition border cursor-pointer ${
+                  pitch.user_vote === 'seeking_cofounder' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-[#F4F4F4] border-black/5 text-gray-700 hover:bg-black/5'
+                }`}
+              >
+                🤝 Seeking Co-Founder
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVote('looking_to_invest')}
+                className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition border cursor-pointer ${
+                  pitch.user_vote === 'looking_to_invest' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-[#F4F4F4] border-black/5 text-gray-700 hover:bg-black/5'
+                }`}
+              >
+                💸 Looking to Invest
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVote('need_advisor')}
+                className={`col-span-2 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-bold transition border cursor-pointer ${
+                  pitch.user_vote === 'need_advisor' ? 'bg-amber-600 text-white border-amber-600 shadow-sm' : 'bg-[#F4F4F4] border-black/5 text-gray-700 hover:bg-black/5'
+                }`}
+              >
+                💡 Need Advisor
               </button>
             </div>
+
+            {/* Signals counts Breakdown indicators */}
+            <div className="border-t border-black/5 pt-3.5 space-y-2">
+              <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Active validation breakdowns</span>
+              <div className="flex flex-wrap gap-2 text-2xs font-bold uppercase tracking-wider text-gray-500">
+                <span className="bg-blue-50 border border-blue-100 rounded px-2 py-0.5 text-blue-600">🤝 {pitch.seeking_cofounder_count ?? 0} Partners</span>
+                <span className="bg-emerald-50 border border-emerald-100 rounded px-2 py-0.5 text-emerald-600">💸 {pitch.looking_to_invest_count ?? 0} Investors</span>
+                <span className="bg-amber-50 border border-amber-100 rounded px-2 py-0.5 text-amber-600">💡 {pitch.need_advisor_count ?? 0} Advisors</span>
+              </div>
+            </div>
+
           </div>
 
           <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm">
@@ -361,7 +454,7 @@ export default function PitchDetail() {
                 <button
                   type="submit"
                   disabled={isSendingCollab || !collabMessage.trim()}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#FF5C00] hover:bg-[#E65300] px-5 py-2.5 text-sm font-bold text-white transition-all shadow-md shadow-[#FF5C00]/15 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer border-none"
                 >
                   {isSendingCollab ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                   Request Collaboration
@@ -409,7 +502,7 @@ function SlideCarousel({ slides }) {
           <button
             type="button"
             onClick={() => setSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
-            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all shadow-md border border-black/5"
+            className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all shadow-md border border-black/5 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -417,7 +510,7 @@ function SlideCarousel({ slides }) {
           <button
             type="button"
             onClick={() => setSlideIndex((prev) => (prev + 1) % slides.length)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all shadow-md border border-black/5"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white text-gray-800 p-1.5 transition-all shadow-md border border-black/5 cursor-pointer"
           >
             <ArrowRight className="h-4 w-4" />
           </button>
